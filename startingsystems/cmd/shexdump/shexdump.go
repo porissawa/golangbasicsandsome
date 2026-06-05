@@ -33,12 +33,16 @@ func main() {
 	{
 		//// read flags + assign default vals
 		flag.BoolVar(&opts.offset, "offset", false, "show offset in start of line")
-		flag.BoolVar(&opts.squeeze, "squeeze", false, "collapse equal lines into existing one, add a * for each")
 		flag.BoolVar(&opts.ascii, "ascii", false, "show ascii representation of hex as a line suffix")
-		flag.BoolVar(&opts.canon, "canon", false, "idk")
+		flag.BoolVar(&opts.canon, "canon", false, "combines offset and ascii")
 		flag.IntVar(&opts.columns, "columns", 2, "how many columns should be shown")
 		flag.IntVar(&opts.columnWidth, "columnWidth", 8, "how wide each column is")
 		flag.Parse()
+	}
+
+	//// more to adhere to the spec than anything
+	if (opts.offset && opts.canon) || (opts.ascii && opts.canon) {
+		fatalf("flag -canon cannot be used with -ascii or - offset")
 	}
 
 	// 1. choose the input source: stdin or a file
@@ -69,32 +73,31 @@ func hexdump(dst io.Writer, src io.Reader, opts Options) error {
 	currOffset := 0
 	currHexOffset := ""
 	//// how many should I add to the buffer will be decided by these flags
-	var offset, squeeze, ascii int
+	var offset, ascii int
 	const hex = "0123456789abcdef"
 	// default: 2 * 8 = 16
 	hexCharPerLine := opts.columns * opts.columnWidth
+	optsOffsetOrCanon := opts.offset || opts.canon
+	optsAsciiOrCanon := opts.ascii || opts.canon
 
-	if opts.ascii {
+	if optsAsciiOrCanon {
 		ascii = 16 + 4
 	}
 
 	for {
 		raw := make([]byte, hexCharPerLine) // read buffer
 
-		if opts.offset {
+		if optsOffsetOrCanon {
 			currHexOffset = fmt.Sprintf("%.8x", currOffset)
 			// "0x" + hex + " | "
 			offset = 2 + len(currHexOffset) + 3
 		}
 
-		//// just so the compiler doesn't say anything about these variables while waiting for implementation
-		fmt.Fprintf(io.Discard, "%d", squeeze)
-
 		encoded := make([]byte, 0, hexCharPerLine*3+1+offset+ascii) // colums * columnWidth bytes, 3 characters per byte, 1 space between bytes, newline at the end
 
 		n, err := io.ReadFull(r, raw[:])
 		if n != 0 {
-			if opts.offset {
+			if optsOffsetOrCanon {
 				encoded = append(encoded, '0', 'x')
 				for _, v := range currHexOffset {
 					encoded = append(encoded, byte(v))
@@ -115,7 +118,7 @@ func hexdump(dst io.Writer, src io.Reader, opts Options) error {
 				encoded = append(encoded, ' ')
 			}
 
-			if opts.ascii {
+			if optsAsciiOrCanon {
 				encoded = append(encoded, '|', ' ')
 				for _, v := range raw {
 					encoded = append(encoded, v)
