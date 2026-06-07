@@ -47,26 +47,39 @@ func main() {
 	//// so we don't waste ops either
 	buf := make([]byte, n)
 
+	//// read from stdin if no -from flag was passed
+	if from == "" {
+		from = os.Stdin.Name()
+	}
+
 	f, err := os.Open(from)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "open: %s: %v", from, err)
+		fmt.Fprintf(os.Stderr, "%s: %v", from, err)
 		os.Exit(1)
 	}
 	//// using defer instead of closing on each failure + end of program
 	defer f.Close()
 
 	// Skip to first byte we want to read
-	_, err = f.Seek(int64(start), io.SeekStart)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "seek: %s: %v\n", from, err)
-		os.Exit(1)
+	//// f.Seek is illegal if f = Stdin
+	if f.Name() != os.Stdin.Name() {
+		_, err = f.Seek(int64(start), io.SeekStart)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v\n", from, err)
+			os.Exit(1)
+		}
 	}
 
 	// read into memory
-	n, err = io.ReadFull(f, buf)
+	n, err = io.ReadFull(f, buf) //// wish I could f.ReadAt or something here, it'd simplify the code
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-		fmt.Fprintf(os.Stderr, "read: %s: %v", from, err)
+		fmt.Fprintf(os.Stderr, "%s: %v", from, err)
 		os.Exit(1)
+	}
+
+	//// since we might have read from stdin, we should manually "seek":
+	if f.Name() != os.Stdin.Name() {
+		buf = buf[start:]
 	}
 
 	// write to stdout
