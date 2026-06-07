@@ -106,9 +106,12 @@ func hexdump(dst io.Writer, src io.Reader, opts Options) error {
 			}
 
 			for i := range opts.columns {
-				lastIdx := opts.columnWidth * (i + 1)
+				//// we don't know what the column width is beforehand so we check which is smaller
+				//// it or the number of the bytes read (since we also don't know what hexCharPerLine is)
+				//// whichever it is in this loop instance, that's what we use.
+				readUpUntil := min(n, opts.columnWidth*(i+1))
 				initIdx := opts.columnWidth * i
-				for j := initIdx; j < min(lastIdx, hexCharPerLine); j++ {
+				for j := initIdx; j < min(readUpUntil, hexCharPerLine); j++ {
 					//// raw[i]>>4 gets the top 4 bits of the byte (high nibble), by right-shifting by 4 bits (so the lower four are replaced)
 					//// raw[i]&0x0f gets the lower 4 bits (the low nibble), as the binary representation for the mask is 00001111
 					//// they each end up with a number from 0 to 15 ([0:(2^4 - 1)], since we're working with 4 bits of information)
